@@ -1,0 +1,22 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+jupyter = "*"
+seaborn = "*"
+matplotlib = "*"
+tqdm = "*"
+sklearn = "*"
+pandas = "*"
+numpy = "*"
+
+[requires]
+python_version = "3.8"
+
+[scripts]
+eval = "jupyter nbconvert --inplace --execute notebooks/eval_dami.ipynb"
+eval_synthetic = "jupyter nbconvert --inplace --execute notebooks/eval_synthetic.ipynb"
