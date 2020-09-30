@@ -3,7 +3,7 @@ _Scripts and notebooks to benchmark one-class sampling strategies._
 
 This repository contains scripts and notebooks to reproduce the experiments and analyses of the paper
 
-> Adrian Englhardt, Holger Trittenbach, Daniel Kottke, Bernhard Sick, Klemens Böhm, "Efficient SVDD Sampling with Approximation Guarantees for the Decision Boundary", 11 June 2020
+> Adrian Englhardt, Holger Trittenbach, Daniel Kottke, Bernhard Sick, Klemens Böhm, "Efficient SVDD Sampling with Approximation Guarantees for the Decision Boundary", [arXiv:2009.13853](https://arxiv.org/abs/2009.13853), 2020.
 
 
 For more information about this research project, see also the one-class sampling [project website](https://www.ipd.kit.edu/ocs/).
@@ -21,7 +21,8 @@ To execute the notebooks, make sure you follow the [setup](#setup), and download
 
 The experiments are implemented in [Julia](https://julialang.org/), some of the evaluation notebooks are written in python.
 This repository contains code to setup the experiments, to execute them, and to analyze the results.
-The one-class classifiers and some other helper methods are implemented in two separate Julia packages: [SVDD.jl](https://github.com/englhardt/SVDD.jl) and [OneClassActiveLearning.jl](https://github.com/englhardt/OneClassActiveLearning.jl). The one-class sampling strategies are implemented in [OneClassSampling.jl](https://github.com/englhardt/OneClassSampling.jl).
+The one-class classifiers and some other helper methods are implemented in two separate Julia packages: [SVDD.jl](https://github.com/englhardt/SVDD.jl) and [OneClassActiveLearning.jl](https://github.com/englhardt/OneClassActiveLearning.jl).
+The one-class sampling strategies are implemented in [OneClassSampling.jl](https://github.com/englhardt/OneClassSampling.jl).
 
 ### Setup
 
@@ -29,7 +30,7 @@ Just clone the repo.
 ```bash
 $ git clone https://github.com/englhardt/ocs-evaluation.git
 ```
-* Experiments require Julia 1.3.1, requirements are defined in `Manifest.toml`. To instantiate, start julia in the `ocs-evaluation` directory with `julia --project` and run `julia> ]instantiate`. See [Julia documentation](https://docs.julialang.org/en/v1.0/stdlib/Pkg/#Using-someone-else's-project-1) for general information on how to setup this project.
+* Experiments require Julia 1.3.1, requirements are defined in `Manifest.toml`. To instantiate, start julia in the `ocs-evaluation` directory with `julia --project` and run `julia> ]instantiate`. See [Julia documentation](https://docs.julialang.org/en/v1.3/stdlib/Pkg/#Using-someone-else's-project-1) for general information on how to setup this project.
 * Notebooks require
   * Julia 1.3.1 (dependencies are already installed in the previous step)
   * Python 3.8 and `pipenv`. Run `pipenv install` to install all dependencies
