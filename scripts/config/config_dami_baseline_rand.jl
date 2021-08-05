@@ -19,7 +19,7 @@ model_init_strategy = Dict{Symbol, Any}(
                         ))
 
 NUM_RERUNS = 5
-KDE_GAMMA = :mod_mean_crit
+KDE_GAMMA = :scott
 
 sampling_strategies = Vector{Dict{Symbol, Any}}()
 
