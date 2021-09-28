@@ -57,7 +57,7 @@ for dataset_class in ["semantic", "literature"]
             else
                 target_file = first(target_files)
             end
-            @info "[$(d)] Resampling '$target_file'."
+            @info "[$(d)] Processing '$target_file'."
             process_file(joinpath(dataset_dir, dataset_class, d, target_file), joinpath(outdir, target_file[1:end-5] * ".csv"))
         end
     end

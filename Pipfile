@@ -13,10 +13,11 @@ tqdm = "*"
 sklearn = "*"
 pandas = "*"
 numpy = "*"
+scikit-posthocs = "*"
 
 [requires]
 python_version = "3.8"
 
 [scripts]
 eval = "jupyter nbconvert --inplace --execute notebooks/eval_dami.ipynb"
-eval_synthetic = "jupyter nbconvert --inplace --execute notebooks/eval_synthetic.ipynb"
+eval_syn = "jupyter nbconvert --inplace --execute notebooks/eval_synthetic.ipynb"

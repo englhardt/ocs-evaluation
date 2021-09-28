@@ -11,14 +11,19 @@ function predict_svdd_model(model, test_data)
     return SVDD.classify.(SVDD.predict(model, test_data))
 end
 
+function predict_score_svdd_model(model, test_data)
+    pred_scores = SVDD.predict(model, test_data)
+    return SVDD.classify.(pred_scores), pred_scores
+end
+
 function evaluate_with_svdd(model::DataType, init_strategy, solver,
                             data::Array{Float64, 2}, labels::Vector{Symbol},
                             test_data::Array{Float64, 2}, test_labels::Vector{Symbol},
                             quality_metrics)
     try
         time_train = @elapsed model = train_svdd_model(model, init_strategy, solver, data, labels)
-        time_pred = @elapsed pred = predict_svdd_model(model, test_data)
-        scores = evaluate_prediction(quality_metrics, test_labels, pred)
+        time_pred = @elapsed pred, pred_scores = predict_score_svdd_model(model, test_data)
+        scores = evaluate_prediction(quality_metrics, test_labels, pred, pred_scores)
         gamma = MLKernels.getvalue(model.kernel_fct.alpha)
         C = model.C
         num_support_vectors = length(SVDD.get_support_vectors(model))
@@ -37,14 +42,23 @@ function train_pwc_model(init_strategy::Dict{Symbol, Any}, data::Array{Float64, 
     return pwc
 end
 
+function predict_pwc_model(model, test_data)
+    return OneClassSampling.predict(model, test_data)
+end
+
+function predict_score_pwc_model(model, test_data)
+    d_x = kde(model.kde_cache, test_data)
+    return OneClassSampling.predict(model, test_data), d_x
+end
+
 function evaluate_with_pwc(init_strategy::Dict{Symbol, Any},
                            data::Array{Float64, 2}, labels::Vector{Symbol},
                            test_data::Array{Float64, 2}, test_labels::Vector{Symbol},
                            quality_metrics)
     try
         time_train = @elapsed model = train_pwc_model(init_strategy, data, labels)
-        time_pred = @elapsed pred = OneClassSampling.predict(model, test_data)
-        scores = evaluate_prediction(quality_metrics, test_labels, pred)
+        time_pred = @elapsed pred, pred_scores = predict_score_pwc_model(model, test_data)
+        scores = evaluate_prediction(quality_metrics, test_labels, pred, pred_scores)
         add_evaluation_stats!(scores, time_train, time_pred, init_strategy[:gamma])
         return scores
     catch
@@ -66,29 +80,28 @@ function add_evaluation_stats!(scores, time_train, time_pred, gamma, C=nothing, 
     return nothing
 end
 
-function evaluate_prediction(quality_metrics, labels, pred)
+function evaluate_prediction(quality_metrics, labels, pred, pred_scores)
     scores = Dict{Symbol, Any}()
     cm = ConfusionMatrix(pred, labels)
     for (metric_name, metric) in quality_metrics
-        m = metric(cm)
-        scores[metric_name] = m
+        if occursin("auc", string(metric_name))
+            m = roc_auc(pred_scores, labels)
+            scores[:auc] = m
+            for k in metric
+                auc_fpr = roc_auc(pred_scores, labels, fpr = k)
+                auc_fpr_normalized = roc_auc(pred_scores, labels, fpr = k, normalize = true)
+                scores[Symbol("auc_fpr_$(k)")] = auc_fpr
+                scores[Symbol("auc_fpr_normalized_$(k)")] = auc_fpr_normalized
+            end
+        else
+            m = metric(cm)
+            scores[metric_name] = m
+        end
     end
     scores[:tp] = cm.tp
     scores[:fp] = cm.fp
     scores[:tn] = cm.tn
     scores[:fn] = cm.fn
-    return scores
-end
-
-function evaluate_sample_qe(params::Dict{Symbol, Any}, sample_mask::BitArray{1},
-                          data::Array{Float64, 2}, labels::Vector{Symbol})
-    scores = Dict{Symbol, Any}()
-    c = KDECache(data, params[:gamma])
-    for t in params[:threshold_strategies]
-        _, inlier_mask, outlier_mask = split_masks(t, c, labels)
-        dev = OneClassSampling.sample_deviation(c, sample_mask, inlier_mask, outlier_mask)
-        scores[Symbol(t)] = dev
-    end
     return scores
 end
 
@@ -100,9 +113,10 @@ end
 
 function evaluate(sampler::Sampler, models::Dict{Symbol, Any},
                   sample_mask::BitArray{1},
+                  train_data::Array{Float64, 2}, train_labels::Vector{Symbol},
                   test_data::Array{Float64, 2}, test_labels::Vector{Symbol},
                   quality_metrics)
-    data, labels = test_data[:, sample_mask], test_labels[sample_mask]
+    data, labels = train_data[:, sample_mask], train_labels[sample_mask]
     if length(labels) <= 0
         throw(EmptySampleException())
     end
@@ -117,8 +131,6 @@ function evaluate(sampler::Sampler, models::Dict{Symbol, Any},
                               test_data, test_labels, quality_metrics)
         push!(scores, :pwc => s)
     end
-    scores_sample_qe = evaluate_sample_qe(models[:sample_qe], sample_mask, test_data, test_labels)
-    push!(scores, :sample_qe => scores_sample_qe)
     scores_specials = evaluate_specials(sampler, models, data, labels,
                                         test_data, test_labels, quality_metrics)
     if scores_specials !== nothing

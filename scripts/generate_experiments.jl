@@ -23,14 +23,14 @@ end
 
 function create_experiments(sampling_strategies::Vector{Dict{Symbol, Any}}, solver::JuMP.OptimizerFactory, quality_metrics, model_init_strategy::Dict{Symbol, Any})::Vector{Dict{Symbol, Any}}
     experiment_configurations = [
-        (data_file, model_params_by_filename[basename(data_file)], s[:method], s[:seed])
+        (data_file, model_params, s[:method], s[:seed])
         for s in sampling_strategies
         for data_file in data_files
+        for model_params in values(filter(x -> x[1][1] == basename(data_file), model_params_by_filename))
     ]
     all_experiments = []
     for (data_file, model_params, sampling_strategy, seed) in experiment_configurations
-        @show (data_file, model_params, sampling_strategy, seed)
-        num_samples = model_params[:n_observations]
+        @show (data_file, model_params[:fold], sampling_strategy, seed)
 
         data_set_name = splitdir(splitdir(data_file)[1])[2]
         local_data_file_name = splitext(basename(data_file))[1]
@@ -56,6 +56,9 @@ function create_experiments(sampling_strategies::Vector{Dict{Symbol, Any}}, solv
                     :threshold_strategies => model_init_strategy[:sample_qe][:threshold_strategies]
                 )
             ),
+            :train_mask => model_params[:train_mask],
+            :test_mask => model_params[:test_mask],
+            :fold => model_params[:fold],
             :sampling_strategy => deepcopy(sampling_strategy),
             :quality_metrics => quality_metrics,
             :seed => seed
