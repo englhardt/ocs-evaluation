@@ -2,6 +2,7 @@ include("config.jl")
 
 using JuMP, Gurobi, SVDD, OneClassSampling
 
+NUM_FOLDS = 5
 solver = with_optimizer(Gurobi.Optimizer; OutputFlag=0, Threads=1)
 data_parameter_file = joinpath(data_input_root, "parameters_gt.jser")
 

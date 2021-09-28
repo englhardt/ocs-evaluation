@@ -79,23 +79,27 @@ end
     e = deepcopy(experiment)
 
     data, labels = load_data(e[:data_file])
-    e[:data_stats] = Dict(:n_observations => size(data, 2),
-                            :n_dims => size(data, 1),
-                            :outlier_ratio => sum(labels .== :outlier) / size(data, 2))
+    train_data, train_labels = data[:, e[:train_mask]], labels[e[:train_mask]]
+    test_data, test_labels = data[:, e[:test_mask]], labels[e[:test_mask]]
+    e[:data_stats] = Dict(:n_observations => size(train_data, 2),
+                          :n_dims => size(train_data, 1),
+                          :outlier_ratio => sum(train_labels .== :outlier) / size(train_data, 2))
 
     errorfile = joinpath(e[:log_dir], "worker", "$(gethostname())_$(getpid())")
     try
-        time_sampling = @elapsed sample_mask = OneClassSampling.sample(e[:sampling_strategy], data, labels)
+        time_sampling = @elapsed sample_mask = OneClassSampling.sample(e[:sampling_strategy], train_data, train_labels)
         e[:result] = Dict{Symbol, Any}(:sample_size => sum(sample_mask), :time_sampling => time_sampling)
         if e[:result][:sample_size] > SAMPLE_SIZE_LIMIT
             throw(TooLargeSampleException(e[:result][:sample_size]))
         end
         @show e[:data_file]
+        @show e[:fold]
         @show e[:sampling_strategy]
         @show e[:result][:sample_size]
         eval_dict = evaluate(e[:sampling_strategy], e[:models],
                              sample_mask,
-                             data, labels, e[:quality_metrics])
+                             train_data, train_labels,
+                             test_data, test_labels, e[:quality_metrics])
         e[:result] = merge(e[:result], eval_dict)
         e[:exit_code] = :success
     catch ex

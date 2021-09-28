@@ -9,10 +9,24 @@ using Serialization
 include(joinpath(@__DIR__, "util", "setup_workers.jl"))
 
 @info "Loading packages on all workers."
-@everywhere using SVDD, OneClassActiveLearning, OneClassSampling, Gurobi, JuMP, Memento
+@everywhere using SVDD, OneClassActiveLearning, OneClassSampling, Gurobi, JuMP, MLBase, Memento, Random
 
 @everywhere function Memento.debug(logger::Logger, error::ErrorException)
     Memento.warn(logger, "Caught ErrorException, msg='$(error.msg)')")
+end
+
+@everywhere function generate_fold_masks(labels, num_folds=10)
+    if num_folds == 1
+        return [(trues(length(labels)), trues(length(labels)))]
+    end
+    folds = collect(StratifiedKfold(labels, num_folds))
+    masks = []
+    for k in 1:num_folds
+        train_mask = [i ∈ folds[k] for i in 1:length(labels)]
+        test_mask = .!train_mask
+        push!(masks, (train_mask, test_mask))
+    end
+    return masks
 end
 
 @info "Searching for data sets in '$(data_input_root)'"
@@ -30,36 +44,47 @@ end
 
 @info "Initializing models."
 all_model_params = @distributed vcat for file in data_files
-    data, labels = load_data(file)
-    n_obs = length(labels)
-    params = Dict{Symbol, Any}(
-        :file => file,
-        :n_observations => n_obs
-    )
-    # SVDD
-    model = instantiate(VanillaSVDD, data, fill(:U, n_obs), Dict{Symbol, Any}())
-    initialize!(model, init_strategy[:svdd])
-    model_parameters = get_model_params(model)
-    params[:svdd] = Dict{Symbol, Any}(
-        :type => Symbol(typeof(model)),
-        :C => get_model_params(model)[:C],
-        :gamma => MLKernels.getvalue(model.kernel_fct.alpha)
-    )
-    # PWC
-    pwc_gamma = init_strategy[:pwc][:gamma](data)
-    pwc_threshold = calculate_threshold(init_strategy[:pwc][:threshold_strat], data, labels, pwc_gamma)
-    params[:pwc] = Dict{Symbol, Any}(
-        :gamma => pwc_gamma,
-        :threshold => pwc_threshold,
-        :threshold_strat => Symbol(typeof(init_strategy[:pwc][:threshold_strat]))
-    )
-    params
+    d, l = load_data(file)
+    Random.seed!(0)
+    fold_masks = generate_fold_masks(l, NUM_FOLDS)
+    worker_params = []
+    for k in 1:NUM_FOLDS
+        @show file, k
+        data, labels = d[:, fold_masks[k][1]], l[fold_masks[k][1]]
+        n_obs = length(labels)
+        params = Dict{Symbol, Any}(
+            :file => file,
+            :n_observations => n_obs,
+            :fold => k,
+            :train_mask => fold_masks[k][1],
+            :test_mask => fold_masks[k][2]
+        )
+        # SVDD
+        model = instantiate(VanillaSVDD, data, fill(:U, n_obs), Dict{Symbol, Any}())
+        initialize!(model, init_strategy[:svdd])
+        model_parameters = get_model_params(model)
+        params[:svdd] = Dict{Symbol, Any}(
+            :type => Symbol(typeof(model)),
+            :C => get_model_params(model)[:C],
+            :gamma => MLKernels.getvalue(model.kernel_fct.alpha)
+        )
+        # PWC
+        pwc_gamma = init_strategy[:pwc][:gamma](data)
+        pwc_threshold = calculate_threshold(init_strategy[:pwc][:threshold_strat], data, labels, pwc_gamma)
+        params[:pwc] = Dict{Symbol, Any}(
+            :gamma => pwc_gamma,
+            :threshold => pwc_threshold,
+            :threshold_strat => Symbol(typeof(init_strategy[:pwc][:threshold_strat]))
+        )
+        push!(worker_params, params)
+    end
+    worker_params
 end
 
 @info "Saving parameters."
-model_params_by_filename = Dict{String, Dict{Symbol, Any}}()
-for model_params in all_model_params
-    model_params_by_filename[basename(model_params[:file])] = model_params
+model_params_by_filename = Dict{Tuple{String, Int}, Dict{Symbol, Any}}()
+for model_params in vcat(all_model_params...)
+    model_params_by_filename[basename(model_params[:file]), model_params[:fold]] = model_params
     delete!(model_params, :file)
 end
 
